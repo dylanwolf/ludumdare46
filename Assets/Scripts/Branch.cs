@@ -11,7 +11,13 @@ public class Branch : MonoBehaviour
     public Branch Parent;
     public Transform Origin;
     public Transform Endpoint;
-    public List<Transform> Joints = new List<Transform>();
+    public List<JointTransform> Joints = new List<JointTransform>();
+    public bool IsReversed;
+    public class JointTransform
+    {
+        public Transform Transform;
+        public bool IsReversed;
+    }
     public List<Branch> Children = new List<Branch>();
     public List<Leaf> Leaves = new List<Leaf>();
     public int MaxChildren;
@@ -47,14 +53,17 @@ public class Branch : MonoBehaviour
         return Mathf.Abs(Mathf.FloorToInt(Water / Plant.TicksPerWaterStatus));
     }
 
-    static Quaternion jointRot = Quaternion.Euler(0, 0, -90); 
+    Quaternion jointRotRight = Quaternion.Euler(0, 0, -90);
+    Quaternion jointRotLeft = Quaternion.Euler(0, 0, 90);
 
     public void GenerateJoints(int count)
     {
         for (var i = 0; i < count; i++)
         {
+            var reversed = Random.Range(0f, 1f) > 0.5;
             // Create join
-            var joint = Instantiate(this.Plant.JointTemplate, Vector3.zero, jointRot, this.transform);
+            var joint = Instantiate(this.Plant.JointTemplate, Vector3.zero,
+                reversed ? jointRotLeft : jointRotRight, this.transform);
 
             var pos = joint.transform.localPosition;
             pos.x = 0;
@@ -62,14 +71,7 @@ public class Branch : MonoBehaviour
             pos.z = 0;
             joint.transform.localPosition = pos;
 
-            if (Random.Range(0f, 1f) > 0.5)
-            {
-                var scale = joint.transform.localScale;
-                scale.y = -1;
-                joint.transform.localScale = scale;
-            }
-
-            Joints.Add(joint.transform);
+            Joints.Add(new JointTransform() { Transform = joint.transform, IsReversed = reversed });
         }
     }
 
@@ -101,37 +103,40 @@ public class Branch : MonoBehaviour
         }
     }
 
-    public void Update()
+    public void UpdateBranch()
     {
+        if (_sr == null) return;
         _sr.sortingOrder = BranchDepth * 2;
 
         // Move to origin
         transform.position = Origin.position;
         
         // Rotate branch
-        var rot = transform.localEulerAngles;
-        rot.z = IsFromEndPoint ? Mathf.Lerp(Plant.MinBranchAngle, Plant.MaxBranchAngle, BranchAngle) :
+        var angle = IsFromEndPoint ? Mathf.Lerp(Plant.MinBranchAngle, Plant.MaxBranchAngle, BranchAngle) :
             Mathf.Lerp(Plant.MinJointAngle, Plant.MaxJointAngle, BranchAngle);
+        var parentAngle = Origin.transform.rotation.eulerAngles.z;
+
+        var rot = transform.localEulerAngles;
+        rot.z = Mathf.Repeat(parentAngle + (angle * (IsReversed ? -1 : 1)), 360);
         transform.localEulerAngles = rot;
 
         // Scale branch
         if (lastBranchGrowth != BranchGrowth || lastBranchLength != BranchLength)
         {
-            var originalParent = this.transform.parent;
-            this.transform.parent = null;
-            var scale = this.transform.localScale;
             var growthScale = Mathf.Lerp(Plant.MinBranchGrowth, Plant.MaxBranchGrowth, BranchGrowth);
             var lengthScale = Mathf.Lerp(Plant.MinBranchLength, Plant.MaxBranchLength, BranchLength) * growthScale;
-            // Convert back to world scale
+            var scale = this.transform.localScale;
             scale.x = growthScale;
             scale.y = lengthScale;
             transform.localScale = scale;
-            this.transform.parent = originalParent;
         }
         lastBranchGrowth = BranchGrowth;
         lastBranchLength = BranchLength;
 
         _sr.sprite = BranchStateSprites[GetLeafHealth()];
+
+        for (var i = 0; i < Children.Count; i++)
+            Children[i].UpdateBranch();
     }
 
     int GetParentFood()
@@ -211,7 +216,9 @@ public class Branch : MonoBehaviour
         {
             Food -= this.Plant.BranchSproutFoodCost;
             var growPoint = Random.Range(-1, Joints.Count);
-            this.Plant.GenerateBranch(this, growPoint == -1 ? this.Endpoint : Joints[growPoint], this.BranchDepth + 1);
+            var jointTransform = growPoint == -1 ? this.Endpoint : Joints[growPoint].Transform;
+            var isReversed = growPoint == -1 ? false : Joints[growPoint].IsReversed;
+            this.Plant.GenerateBranch(this, jointTransform, this.BranchDepth + 1, isReversed);
         }
     }
 }

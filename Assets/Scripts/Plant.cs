@@ -28,22 +28,23 @@ public class Plant : MonoBehaviour
     public GameObject JointTemplate;
     public List<List<Branch>> ChildrenByDepth = new List<List<Branch>>();
 
-    public void GenerateBranch(Branch parent, Transform joint, int depth)
+    public void GenerateBranch(Branch parent, Transform joint, int depth, bool isReversed = false)
     {
         if (
             (parent == null && this.Child != null) ||
             (parent != null && parent.Children.Count >= parent.MaxChildren)
         ) return;
 
-        var b = Instantiate(BranchTemplate, joint.transform.position, Quaternion.identity, joint);
+        var b = Instantiate(BranchTemplate, joint.transform.position, Quaternion.identity);
         b.Plant = this;
         b.Parent = parent;
         b.Origin = joint;
         b.IsFromEndPoint = (parent == null && joint == PlantOrigin) || (parent != null && joint == parent.Endpoint);
         b.BranchAngle = Random.Range(0.0f, 1.0f);
         b.BranchGrowth = 0;
-        b.BranchLength = 0;
+        b.BranchLength = Random.Range(0.0f, 1.0f);
         b.BranchDepth = depth;
+        b.IsReversed = isReversed;
         b.GenerateJoints(Random.Range(MinBranchJoints, MaxBranchJoints+1));
         b.GenerateLeaves(Random.Range(MinBranchLeaves, MaxBranchLeaves+1));
         b.MaxChildren = Random.Range(MinBranchChildren, MaxBranchChildren+1);
@@ -64,6 +65,11 @@ public class Plant : MonoBehaviour
     {
         PlantOrigin = this.transform;
         this.GenerateBranch(null, this.PlantOrigin, 0);
+    }
+
+    public void Update()
+    {
+        if (Child != null) { Child.UpdateBranch(); }
     }
 
     public float BranchGrowthPerTick;

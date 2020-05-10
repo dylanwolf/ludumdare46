@@ -18,7 +18,7 @@ public class BranchEditor : Editor
         {
             var branch = (Branch)target;
             var joint = branch.Joints[Random.Range(0, branch.Joints.Count)];
-            branch.Plant.GenerateBranch(branch, joint, branch.BranchDepth + 1);
+            branch.Plant.GenerateBranch(branch, joint.Transform, branch.BranchDepth + 1, joint.IsReversed);
         }
 
     }
